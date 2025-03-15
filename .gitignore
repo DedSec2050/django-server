@@ -1,0 +1,62 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Virtual environments
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Django specific
+*.log
+db.sqlite3
+local_settings.py
+
+# Static and media files (if not handled by your storage system)
+staticfiles/
+media/
+
+# Django migrations (if you prefer to ignore them)
+*/migrations/
+
+# IDE / Editor directories and files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# macOS files
+.DS_Store
+
+# Testing
+.coverage
+.tox/
+.pytest_cache/
+
+# Others
+*.sqlite3
+*.pot
+*.pyc
