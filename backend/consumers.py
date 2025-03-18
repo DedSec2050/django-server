@@ -1,47 +1,52 @@
-from channels.generic.websocket import AsyncWebsocketConsumer
 import json
+from urllib.parse import parse_qs
+from channels.generic.websocket import AsyncWebsocketConsumer
 
-class CentralServerConsumer(AsyncWebsocketConsumer):
-    connected_clients = {}  # Store connected clients
-
+class DaemonWatcherConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.client_ip = self.scope["client"][0]
-        self.client_type = self.scope["path"]  # Identify Next.js or Golang
-        await self.accept()
-        
-        # Store connection based on type
-        if "/ws/server/" in self.client_type:  # Golang Clients
-            self.connected_clients[self.channel_name] = {"ip": self.client_ip, "type": "golang"}
-        elif "/ws/frontend/" in self.client_type:  # Next.js Clients
-            self.connected_clients[self.channel_name] = {"ip": self.client_ip, "type": "frontend"}
+        # Extract username and email from the query string
+        query_string = self.scope["query_string"].decode()
+        qs = parse_qs(query_string)
+        self.username = qs.get("username", ["Unknown"])[0]
+        self.email = qs.get("email", ["Unknown"])[0]
 
-        await self.broadcast_clients()
+        # Define the group name for broadcasting messages
+        self.group_name = "alerts"
+
+        # Add this connection to the group
+        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        await self.accept()
+        print(f"WebSocket connected: {self.username} ({self.email})")
 
     async def disconnect(self, close_code):
-        if self.channel_name in self.connected_clients:
-            del self.connected_clients[self.channel_name]
-        await self.broadcast_clients()
+        # Remove this connection from the group when disconnected
+        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        print("WebSocket disconnected.")
 
     async def receive(self, text_data):
-        data = json.loads(text_data)
+        try:
+            data = json.loads(text_data)
+        except json.JSONDecodeError:
+            print("Received invalid JSON.")
+            return
 
-        # Broadcast data to all Next.js frontend clients
-        for channel, info in self.connected_clients.items():
-            if info["type"] == "frontend":
-                await self.channel_layer.send(channel, {
-                    "type": "send_data",
-                    "message": data
-                })
+        # Attach username/email if not provided in the message
+        if "username" not in data:
+            data["username"] = self.username
+        if "email" not in data:
+            data["email"] = self.email
 
-    async def send_data(self, event):
-        await self.send(text_data=json.dumps(event["message"]))
+        # Broadcast the message to all clients in the group
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                "type": "broadcast_message",
+                "message": data,
+            }
+        )
+        print("Broadcasted message:", data)
 
-    async def broadcast_clients(self):
-        """Notify Next.js UI about connected clients."""
-        clients_info = {"clients": list(self.connected_clients.values())}
-        for channel, info in self.connected_clients.items():
-            if info["type"] == "frontend":
-                await self.channel_layer.send(channel, {
-                    "type": "send_data",
-                    "message": clients_info
-                })
+    async def broadcast_message(self, event):
+        message = event["message"]
+        # Forward the message to the connected client
+        await self.send(text_data=json.dumps(message))
